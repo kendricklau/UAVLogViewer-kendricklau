@@ -8,6 +8,8 @@ import os
 from datetime import datetime
 import uuid
 
+from rag_docs_generation import RAGDocsGenerator
+
 app = FastAPI(title="UAV Logs Chatbot Backend", version="1.0.0")
 
 # Enable CORS
@@ -60,7 +62,7 @@ async def upload_log_data(data: dict):
             "filename": data.get("filename", "unknown"),
             "log_type": data.get("logType", "unknown"),
             "vehicle": data.get("vehicle", "unknown"),
-            "flight_duration_ms": data.get("lastTime", 0),
+            "flight_duration_ms": data.get("lastTime") or 0,
             "upload_time": data.get("timestamp", ""),
             
             # Time series data by message type
@@ -97,6 +99,21 @@ async def upload_log_data(data: dict):
         # Save to file
         with open(f'data/{log_id}.json', 'w') as f:
             json.dump(rag_data, f, indent=2)
+        
+        # Generate RAG documents using the RAGDocsGenerator
+        rag_generator = RAGDocsGenerator()
+        rag_documents = rag_generator.generate_rag_documents(rag_data)
+        
+        # Save RAG documents
+        rag_file = f'data/{log_id}_rag.json'
+        with open(rag_file, 'w') as f:
+            json.dump({
+                "log_id": log_id,
+                "documents": rag_documents,
+                "created_at": datetime.now().isoformat()
+            }, f, indent=2)
+        
+        print(f"Successfully generated {len(rag_documents)} RAG documents for log {log_id}")
         
         return {
             "status": "success",
