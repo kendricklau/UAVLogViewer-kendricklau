@@ -196,6 +196,34 @@ export default {
 
             this.state.processStatus = 'Processed!'
             this.state.processDone = true
+
+            // export all extracted flight data to backend
+            this.exportToBackend({
+                filename: this.state.file,
+                logType: this.state.logType,
+                metadata: this.state.metadata,
+                messages: this.state.messages,
+                flightModes: this.state.flightModeChanges,
+                events: this.state.events,
+                mission: this.state.mission,
+                vehicle: this.state.vehicle,
+                parameters: this.state.params,
+                defaultParams: this.state.defaultParams,
+                textMessages: this.state.textMessages,
+                fences: this.state.fences,
+                attitudeSources: this.state.attitudeSources,
+                attitudeSource: this.state.attitudeSource,
+                timeAttitude: this.state.timeAttitude,
+                timeAttitudeQ: this.state.timeAttitudeQ,
+                trajectorySources: this.state.trajectorySources,
+                trajectorySource: this.state.trajectorySource,
+                trajectories: this.state.trajectories,
+                currentTrajectory: this.state.currentTrajectory,
+                timeTrajectory: this.state.timeTrajectory,
+                namedFloats: this.state.namedFloats,
+                lastTime: this.state.lastTime
+            })
+
             // Change to plot view after 2 seconds so the Processed status is readable
             setTimeout(() => { this.$eventHub.$emit('set-selected', 'plot') }, 2000)
 
@@ -225,6 +253,44 @@ export default {
             for (const rgba of colormap(colorMapOptions)) {
                 this.state.colors.push(new Color(rgba[0], rgba[1], rgba[2]))
                 // this.translucentColors.push(new Cesium.Color(rgba[0], rgba[1], rgba[2], 0.1))
+            }
+        },
+        async exportToBackend (data) {
+            try {
+                // Convert Float64Array to regular arrays for JSON serialization
+                const convertArrays = (obj) => {
+                    if (obj instanceof Float64Array || obj instanceof Float32Array || obj instanceof Int32Array) {
+                        return Array.from(obj)
+                    }
+                    if (Array.isArray(obj)) {
+                        return obj.map(convertArrays)
+                    }
+                    if (obj && typeof obj === 'object') {
+                        const converted = {}
+                        for (const [key, value] of Object.entries(obj)) {
+                            converted[key] = convertArrays(value)
+                        }
+                        return converted
+                    }
+                    return obj
+                }
+                const exportData = convertArrays(data)
+                exportData.timestamp = new Date().toISOString()
+                const response = await fetch('/api/logs/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(exportData)
+                })
+                if (response.ok) {
+                    const result = await response.json()
+                    console.log('Log data exported successfully:', result)
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+                }
+            } catch (error) {
+                console.error('Failed to export to backend:', error)
             }
         }
     },
