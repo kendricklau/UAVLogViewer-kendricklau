@@ -9,6 +9,7 @@ from datetime import datetime
 import uuid
 
 from rag_docs_generation import RAGDocsGenerator
+from chat_agent import ChatAgent
 
 app = FastAPI(title="UAV Logs Chatbot Backend", version="1.0.0")
 
@@ -130,3 +131,11 @@ async def debug_log_data(data: dict):
     print("Received data keys:", list(data.keys()))
     print("Data types:", {k: type(v) for k, v in data.items()})
     return {"received": True, "keys": list(data.keys())}
+
+@app.post("/api/chat/ask")
+async def ask_chat(question: str):
+    try:
+        result = ChatAgent.ask(question)
+        return {"result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
