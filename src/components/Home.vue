@@ -198,32 +198,33 @@ export default {
             this.state.processDone = true
 
             // export all extracted flight data to backend
-            this.exportToBackend({
-                filename: this.state.file,
-                logType: this.state.logType,
-                metadata: this.state.metadata,
-                messages: this.state.messages,
-                flightModes: this.state.flightModeChanges,
-                events: this.state.events,
-                mission: this.state.mission,
-                vehicle: this.state.vehicle,
-                parameters: this.state.params,
-                defaultParams: this.state.defaultParams,
-                textMessages: this.state.textMessages,
-                fences: this.state.fences,
-                attitudeSources: this.state.attitudeSources,
-                attitudeSource: this.state.attitudeSource,
-                timeAttitude: this.state.timeAttitude,
-                timeAttitudeQ: this.state.timeAttitudeQ,
-                trajectorySources: this.state.trajectorySources,
-                trajectorySource: this.state.trajectorySource,
-                trajectories: this.state.trajectories,
-                currentTrajectory: this.state.currentTrajectory,
-                timeTrajectory: this.state.timeTrajectory,
-                namedFloats: this.state.namedFloats,
-                lastTime: this.state.lastTime
-            })
-
+            if (!this.hasExportedToBackend) {
+                this.exportToBackend({
+                    filename: this.state.file,
+                    logType: this.state.logType,
+                    metadata: this.state.metadata,
+                    messages: this.state.messages,
+                    flightModes: this.state.flightModeChanges,
+                    events: this.state.events,
+                    mission: this.state.mission,
+                    vehicle: this.state.vehicle,
+                    parameters: this.state.params,
+                    defaultParams: this.state.defaultParams,
+                    textMessages: this.state.textMessages,
+                    fences: this.state.fences,
+                    attitudeSources: this.state.attitudeSources,
+                    attitudeSource: this.state.attitudeSource,
+                    timeAttitude: this.state.timeAttitude,
+                    timeAttitudeQ: this.state.timeAttitudeQ,
+                    trajectorySources: this.state.trajectorySources,
+                    trajectorySource: this.state.trajectorySource,
+                    trajectories: this.state.trajectories,
+                    currentTrajectory: this.state.currentTrajectory,
+                    timeTrajectory: this.state.timeTrajectory,
+                    lastTime: this.state.lastTime
+                })
+                this.hasExportedToBackend = true
+            }
             // Change to plot view after 2 seconds so the Processed status is readable
             setTimeout(() => { this.$eventHub.$emit('set-selected', 'plot') }, 2000)
 
