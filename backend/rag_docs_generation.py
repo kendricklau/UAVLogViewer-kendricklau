@@ -20,6 +20,9 @@ class RAGDocsGenerator:
         # 5. PARAMETERS & CONFIGURATION (Important - covers 10% of queries)
         documents.append(self.create_parameters_document(log_data))
         
+        # 6. ARDUPILOT REFERENCE (High priority - covers technical definitions)
+        documents.append(self.create_ardupilot_reference_document(log_data))
+        
         return documents
     def create_flight_overview(self, log_data):
         """High-level flight summary combining all available data sources"""
@@ -505,3 +508,130 @@ class RAGDocsGenerator:
             },
             "searchable_fields": ["health", "diagnostics", "modes", "events", "messages", "errors"]
         }
+    def create_ardupilot_reference_document(self, log_data):
+        """Create reference document with ArduPilot message type definitions"""
+        try:
+            # Load the ArduPilot documentation index
+            import json
+            import os
+            
+            docs_path = 'static/ardupilot_index.json'
+            if not os.path.exists(docs_path):
+                return {
+                    "title": "ArduPilot Message Reference",
+                    "content": "ArduPilot documentation not available. Please run docs_parser.py to generate reference data.",
+                    "type": "reference",
+                    "priority": "low"
+                }
+            
+            with open(docs_path, 'r') as f:
+                docs_data = json.load(f)
+            
+            # Find the log messages document
+            log_docs = [doc for doc in docs_data.get('docs', []) if doc.get('type') == 'ardupilot_log_messages']
+            if not log_docs:
+                return {
+                    "title": "ArduPilot Message Reference", 
+                    "content": "No ArduPilot log message documentation found.",
+                    "type": "reference",
+                    "priority": "low"
+                }
+            
+            log_doc = log_docs[0]
+            message_sections = log_doc.get('message_sections', [])
+            
+            # Filter for relevant message types
+            relevant_types = ['ATT', 'GPS', 'XKQ', 'PARM']
+            relevant_sections = [section for section in message_sections 
+                            if section.get('message_type') in relevant_types]
+            
+            if not relevant_sections:
+                return {
+                    "title": "ArduPilot Message Reference",
+                    "content": "No relevant message types found in documentation.",
+                    "type": "reference", 
+                    "priority": "low"
+                }
+            
+            # Build reference content
+            content_parts = [
+                "# ArduPilot Message Type Reference",
+                "",
+                "This document provides technical definitions for the message types present in this log file.",
+                "Use this reference to understand field meanings, units, and engineering significance.",
+                ""
+            ]
+            
+            for section in relevant_sections:
+                msg_type = section.get('message_type', 'Unknown')
+                description = section.get('description', 'No description available')
+                table_data = section.get('table_data', [])
+                
+                content_parts.extend([
+                    f"## {msg_type} - {description}",
+                    ""
+                ])
+                
+                if table_data:
+                    content_parts.append("### Field Definitions:")
+                    content_parts.append("")
+                    
+                    for field in table_data:
+                        field_name = field.get('TimeUS', 'Unknown')
+                        units = field.get('μs', 'N/A')
+                        description = field.get('Time since system startup', 'No description')
+                        
+                        if field_name != 'TimeUS':  # Skip the header row
+                            content_parts.append(f"- **{field_name}**: {description}")
+                            if units and units != 'N/A':
+                                content_parts.append(f"  - Units: {units}")
+                            content_parts.append("")
+                else:
+                    content_parts.append("*No field definitions available*")
+                    content_parts.append("")
+            
+            # Add engineering context
+            content_parts.extend([
+                "## Engineering Context",
+                "",
+                "### ATT (Attitude) Message:",
+                "- Contains vehicle orientation data (roll, pitch, yaw)",
+                "- Critical for flight control and stability analysis", 
+                "- DesRoll/DesPitch/DesYaw are commanded values",
+                "- Roll/Pitch/Yaw are actual measured values",
+                "",
+                "### GPS Message:",
+                "- Contains Global Navigation Satellite System data",
+                "- Essential for position, velocity, and navigation analysis",
+                "- Status field indicates GPS fix quality (0=no fix, 2=2D fix, 3=3D fix)",
+                "- HDop/VDop indicate position accuracy dilution",
+                "",
+                "### XKQ (EKF Quaternion) Message:",
+                "- Contains Extended Kalman Filter quaternion data",
+                "- Represents rotation from NED (North-East-Down) to XYZ (autopilot) axes",
+                "- Critical for understanding sensor fusion and attitude estimation",
+                "- Q1, Q2, Q3, Q4 are quaternion components",
+                "",
+                "### PARM (Parameters) Message:",
+                "- Contains vehicle configuration parameters",
+                "- Essential for understanding vehicle setup and tuning",
+                "- Parameters control flight behavior, limits, and safety features",
+                "- Name field contains parameter name, Value contains current setting",
+                ""
+            ])
+            
+            return {
+                "title": "ArduPilot Message Reference",
+                "content": "\n".join(content_parts),
+                "type": "reference",
+                "priority": "high",
+                "message_types_covered": [s.get('message_type') for s in relevant_sections]
+            }
+            
+        except Exception as e:
+            return {
+                "title": "ArduPilot Message Reference",
+                "content": f"Error loading ArduPilot documentation: {str(e)}",
+                "type": "reference",
+                "priority": "low"
+            }
