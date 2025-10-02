@@ -22,15 +22,15 @@ SUMMARIZE_FOR_USER_SYSTEM_PROMPT = """
     summary of issues or findings with timestamps associated with each of them. Each should be its own paragraph and comes with a diagnostic and suggested cause.
     Ensure you address the user question first, and then elaborate. No need to mention every expert explicitly, just a quick summary of what each expert found.
     This is an executive summary, so don't be too verbose. Do not wrap in markdown code blocks or add any other text.
+    At the end, add a list of relevant timestamps and one sentence of each event. This can be used for the user to find easily in the flight plot. Keep it concise.
 """
 PLANNER_SYSTEM_PROMPT = f"""
     You are an expert in ArduPilot operations and vehicle diagnosis.
     Given a question, decide the following and respond as a compact JSON object with the keys:
-    "requested_time_windows": [(timestamp_ms, window_ms), ...], array of a tuple pair of single point timestamps and a before and after window size to request from those timestamps. Always in milliseconds.
+    "requested_time_windows": [(timestamp_ms, window_ms), ...], array of a tuple pair of single point timestamps and a before and after window size max of 100ms to request from those timestamps. You can always default to tuple (0, 10000000) if you need the full log or no timestamps identified. Always in milliseconds and always include at least one tuple.
     "requested_experts": array of experts to call drawn from ["attitude","gps","ekf","parameters"], ok to not call any experts if the question is not related to any of the experts.
     Return ONLY valid JSON. Do not wrap in markdown code blocks or add any other text.
 """
-        
 EXPERT_SYSTEM_PROMPT = {
     "attitude": """
         You are an expert in ArduPilot operations and vehicle diagnosis. Take into account the provided evidence and diagnostics to answer the question.
@@ -201,12 +201,11 @@ class ChatAgent:
         )
         planner_response_content = response.choices[0].message.content
         _append_agent_chat_to_history(self.log_id, "planner", question, planner_response_content)
-        
+        print("planner_response_content", planner_response_content)
         return planner_response_content
     
     def call_general(self, question: str):
         rag_docs = self.get_rag_docs(self.log_id)
-        flight_data = self.get_flight_data_v2(question, )
         context = "\n\n".join([f"Title: {doc.get('title', '')}\nContent: {doc.get('content', '')}" for doc in rag_docs])
         context = self._truncate_text(context, MAX_INPUT_TOKENS)
         prompt_question = self._truncate_text(question, MAX_INPUT_TOKENS)
@@ -309,7 +308,10 @@ class ChatAgent:
         return_data = []
 
         for timestamp, window_ms in timestamp_ms:
-            flight_data = self.get_flight_data_v2(timestamp, relevant_signals, window_ms)
+            if timestamp == 0 and window_ms == 10000000 or timestamp_ms == []:
+                flight_data = self.get_all_flight_data()
+            else:
+                flight_data = self.get_flight_data_v2(timestamp, relevant_signals, window_ms)
             flight_data_str = self._json_dump(flight_data)
             flight_data_str = self._truncate_text(flight_data_str, MAX_INPUT_TOKENS)
             context = "\n\n".join([f"Title: {doc.get('title', '')}\nContent: {doc.get('content', '')}" for doc in rag_docs])
@@ -368,12 +370,13 @@ class ChatAgent:
         
         planner_resp = self.planner(question)
         planner_resp = self._safe_parse_json(planner_resp)
-        if "requested_experts" not in planner_resp:
-            planner_resp["requested_experts"] = ["attitude", "gps", "ekf", "parameters"]
         if "requested_time_windows" not in planner_resp:
             planner_resp["requested_time_windows"] = [(0, 10000000)]
-        for expert in planner_resp["requested_experts"]:
-            expert_resp[expert] = self.call_expert(question, expert, planner_resp["requested_time_windows"])
+        if "requested_experts" not in planner_resp:
+            expert_resp["general"] = self.call_general(question)
+        else:
+            for expert in planner_resp["requested_experts"]:
+                expert_resp[expert] = self.call_expert(question, expert, planner_resp["requested_time_windows"])
         integration_resp = self.call_integration(question, expert_resp)
         final_resp = self.call_summarizeForUser(question, integration_resp)
         return final_resp
@@ -449,6 +452,7 @@ class ChatAgent:
                 if signal in log_data["time_series_data"][message]["data"].keys():
                     start_time = float(log_data["time_series_data"][message]["time_range"]["start"])
                     end_time = float(log_data["time_series_data"][message]["time_range"]["end"])
+                    
                     if start_time <= float(timestamp_ms) < end_time:
                         log_index = [
                             i for i, t in enumerate(log_data["time_series_data"][message]["data"]["time_boot_ms"])
@@ -464,4 +468,36 @@ class ChatAgent:
             return_data = return_data[::step]
         else:   
             return_data = [return_data]
+        metadata = []
+        metadata.append({"flight_summary": log_data["flight_summary"]})
+        metadata.append({"parameters": log_data["parameters"]["changeArray"]})
+        metadata.append({"default_parameters": log_data["default_parameters"]})
+        return_data.append({"metadata": metadata})
+        return return_data
+
+    def get_all_flight_data(self):
+        max_data = 400
+        try:
+            with open(f'data/{self.log_id}.json', 'r') as f:
+                log_data = json.load(f)
+        except FileNotFoundError:
+            return {"error": f"Log file {self.log_id}.json not found"}
+        
+        # grab the relevant time window
+        return_data = []
+        messages = log_data["time_series_data"].keys()
+        for message in messages:
+            for signal in log_data["time_series_data"][message]["data"].keys():
+                return_data.append({"tsd": log_data["time_series_data"][message]["data"]["time_boot_ms"], signal: log_data["time_series_data"][message]["data"][signal]})
+                
+        if len(return_data) > max_data:
+            step = len(return_data) // max_data
+            return_data = return_data[::step]
+        else:   
+            return_data = [return_data]
+        metadata = []
+        metadata.append({"flight_summary": log_data["flight_summary"]})
+        metadata.append({"parameters": log_data["parameters"]["changeArray"]})
+        metadata.append({"default_parameters": log_data["default_parameters"]})
+        return_data.append({"metadata": metadata})
         return return_data
