@@ -1,3 +1,21 @@
+# Custom Chat Bot Setup (kendricklau evaluation)
+
+``` bash
+# Set env tokens in terminal (optionally in a .env file)
+export VUE_APP_CESIUM_TOKEN=<your cesium token>
+export OPENAI_API_KEY=<your openai api key>
+
+# Launch backend
+cd backend
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 3000
+
+# In another terminal session, launch frontend
+npm install
+npm run dev
+
 # UAV Log Viewer
 
 ![log seeking](preview.gif "Logo Title Text 1")
