@@ -116,7 +116,7 @@ class RAGDocsGenerator:
         
         # Check for events
         if events:
-            health_indicators.append(f"📋 {len(events)} flight events recorded")
+            health_indicators.append(f"{len(events)} flight events recorded")
         
         # Analyze specific data sources
         data_sources = []
@@ -227,7 +227,7 @@ class RAGDocsGenerator:
             des_yaws = data.get('DesYaw', [])
             err_rp = data.get('ErrRP', [])
             err_yaw = data.get('ErrYaw', [])
-            
+
             if rolls and pitches and yaws:
                 content += f"\nAttitude Ranges:\n"
                 content += f"- Roll: {min(rolls):.1f}° to {max(rolls):.1f}°\n"
@@ -270,7 +270,7 @@ class RAGDocsGenerator:
                 "has_attitude": bool(att_data),
                 "attitude_samples": att_data.get('sample_count', 0) if att_data else 0
             },
-            "searchable_fields": ["attitude", "control", "stability", "roll", "pitch", "yaw", "errors", "ekf"]
+            "searchable_fields": ["attitude", "control", "stability", "roll", "pitch", "yaw", "errors", "ekf"],
         }
     
     def create_gps_navigation_document(self, log_data):
@@ -490,10 +490,10 @@ class RAGDocsGenerator:
         if text_messages:
             important_messages = [msg for msg in text_messages if len(msg) >= 3 and 
                                 any(keyword in msg[2].lower() for keyword in 
-                                ['error', 'warning', 'fail', 'fault', 'gps', 'ekf', 'armed', 'disarmed'])]
+                                ['error', 'warning', 'fail', 'fault', 'gps', 'ekf', 'armed', 'disarmed', 'bad'])]
             if important_messages:
                 content += f"\nImportant Messages:\n"
-                for msg in important_messages[-5:]:  # Last 5 important messages
+                for msg in important_messages:  # Last 5 important messages
                     content += f"- {msg[0]/1000:.1f}s: {msg[2]}\n"
         
         return {

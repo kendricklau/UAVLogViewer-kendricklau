@@ -60,6 +60,12 @@ class ChatResponse(BaseModel):
     log_id: str
     message_id: str
 
+class FlightDataRequest(BaseModel):
+    log_id: str
+    timestamp_ms: float
+    signals: Optional[List[str]] = None
+    window_seconds: int = 10
+
 # Define the upload_log_data endpoint
 @app.post("/api/logs/upload")
 async def upload_log_data(data: dict):
@@ -276,3 +282,74 @@ async def get_chat_history(log_id: str):
     except Exception as e:
         print(f"Error retrieving chat history: {e}")
         return {"messages": []}
+
+@app.post("/api/flight-data")
+async def get_flight_data(request: FlightDataRequest):
+    """Get flight data around a specific timestamp"""
+    try:
+        rag_file = f'data/{request.log_id}_rag.json'
+        if not os.path.exists(rag_file):
+            raise HTTPException(status_code=404, detail=f"Log {request.log_id} not found")
+        
+        agent = ChatAgent(log_id=request.log_id)
+        data = agent.get_flight_data(
+            timestamp_ms=request.timestamp_ms,
+            signals=request.signals,
+            window_sec=request.window_seconds
+        )
+        
+        return data
+        
+    except Exception as e:
+        print(f"Error getting flight data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/flight-events/{log_id}")
+async def get_flight_events(log_id: str):
+    """Get all flight events for a log"""
+    try:
+        rag_file = f'data/{log_id}_rag.json'
+        if not os.path.exists(rag_file):
+            raise HTTPException(status_code=404, detail=f"Log {log_id} not found")
+        
+        with open(f'data/{log_id}.json', 'r') as f:
+            log_data = json.load(f)
+        
+        events = []
+        flight_summary = log_data.get('flight_summary', {})
+        
+        # Add mode changes
+        for mode_time, mode in flight_summary.get('modes', []):
+            events.append({
+                "timestamp_ms": mode_time,
+                "type": "mode_change",
+                "description": f"Mode change to {mode}"
+            })
+        
+        # Add flight events
+        for event in flight_summary.get('events', []):
+            if len(event) >= 2:
+                events.append({
+                    "timestamp_ms": event[0],
+                    "type": "flight_event",
+                    "description": event[1]
+                })
+        
+        # Add important messages
+        for msg in flight_summary.get('text_messages', []):
+            if len(msg) >= 3:
+                message_text = msg[2].lower()
+                if any(word in message_text for word in ["error", "fail", "fault", "warning", "armed", "disarmed"]):
+                    events.append({
+                        "timestamp_ms": msg[0],
+                        "type": "system_message",
+                        "description": msg[2]
+                    })
+        
+        events.sort(key=lambda x: x["timestamp_ms"])
+        
+        return {"log_id": log_id, "events": events}
+        
+    except Exception as e:
+        print(f"Error getting flight events: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
