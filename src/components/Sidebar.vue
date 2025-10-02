@@ -747,17 +747,18 @@ a.centered-section {
 
     /* Chatbot Sidebar Styles */
     .chatbot-sidebar {
-        padding: 20px;
-        text-align: center;
-        height: calc(100vh - 200px);
+        padding: 10px; /* Reduced padding */
+        text-align: left; /* Left align text */
+        height: calc(100vh - 120px); /* Full height minus header */
         display: flex;
         flex-direction: column;
     }
 
     .chatbot-sidebar h4 {
         color: #667eea;
-        margin-bottom: 15px;
-        font-size: 18px;
+        margin-bottom: 10px; /* Reduced margin */
+        font-size: 16px; /* Smaller font */
+        text-align: left; /* Left align header */
     }
 
     .chatbot-messages {
@@ -765,23 +766,24 @@ a.centered-section {
         overflow-y: auto;
         background: #f8f9fa;
         border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 16px;
-        max-height: 400px;
+        padding: 12px; /* Reduced padding */
+        margin-bottom: 12px; /* Reduced margin */
+        max-height: none; /* Remove max-height constraint */
     }
 
     .welcome-message {
-        text-align: center;
+        text-align: left; /* Left align welcome message */
         color: #6c757d;
-        padding: 20px;
+        padding: 15px; /* Reduced padding */
     }
 
     .welcome-message p {
-        margin: 8px 0;
+        margin: 6px 0; /* Reduced margin */
+        font-size: 14px; /* Smaller font */
     }
 
     .example-questions {
-        margin-top: 16px;
+        margin-top: 12px; /* Reduced margin */
         text-align: left;
     }
 
@@ -792,10 +794,10 @@ a.centered-section {
 
     .example-question {
         background: #e9ecef;
-        padding: 8px 12px;
-        margin: 4px 0;
-        border-radius: 8px;
-        font-size: 14px;
+        padding: 6px 10px; /* Reduced padding */
+        margin: 3px 0; /* Reduced margin */
+        border-radius: 6px; /* Smaller border radius */
+        font-size: 12px; /* Smaller font */
         cursor: pointer;
         transition: background-color 0.2s;
         display: block;
@@ -806,30 +808,30 @@ a.centered-section {
     }
 
     .message {
-        margin-bottom: 16px;
+        margin-bottom: 8px; /* Reduced spacing between messages */
         display: flex;
         flex-direction: column;
     }
 
     .message.user {
-        align-items: flex-end;
+        align-items: flex-start; /* Left align user messages too */
     }
 
     .message.assistant {
-        align-items: flex-start;
+        align-items: flex-start; /* Already left aligned */
     }
 
     .message-content {
-        max-width: 80%;
-        padding: 12px 16px;
-        border-radius: 18px;
+        max-width: 90%; /* Increased max width for better use of space */
+        padding: 8px 12px; /* Reduced padding */
+        border-radius: 12px; /* Smaller border radius */
         position: relative;
     }
 
     .message.user .message-content {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        border-bottom-right-radius: 4px;
+        border-bottom-left-radius: 4px; /* Changed to left radius for left alignment */
     }
 
     .message.assistant .message-content {
@@ -840,25 +842,26 @@ a.centered-section {
     }
 
     .message-text {
-        line-height: 1.4;
+        line-height: 1.3; /* Tighter line height */
         word-wrap: break-word;
+        font-size: 13px; /* Smaller font */
     }
 
     .message-time {
-        font-size: 11px;
+        font-size: 10px; /* Smaller time font */
         opacity: 0.7;
-        margin-top: 4px;
+        margin-top: 3px; /* Reduced margin */
     }
 
     .typing-indicator {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 3px; /* Reduced gap */
     }
 
     .typing-indicator span {
-        width: 8px;
-        height: 8px;
+        width: 6px; /* Smaller dots */
+        height: 6px;
         border-radius: 50%;
         background-color: #999;
         animation: typing 1.4s infinite ease-in-out;
@@ -870,6 +873,10 @@ a.centered-section {
 
     .typing-indicator span:nth-child(2) {
         animation-delay: -0.16s;
+    }
+
+    .typing-indicator span:nth-child(3) {
+        animation-delay: 0s;
     }
 
     @keyframes typing {
@@ -884,23 +891,24 @@ a.centered-section {
     }
 
     .chatbot-input {
-        padding: 16px;
+        padding: 10px; /* Reduced padding */
         background: white;
         border-top: 1px solid #e9ecef;
         border-radius: 8px;
+        flex-shrink: 0; /* Prevent input from shrinking */
     }
 
     .input-group {
         display: flex;
-        gap: 8px;
+        gap: 6px; /* Reduced gap */
     }
 
     .message-input {
         flex: 1;
-        padding: 12px 16px;
+        padding: 8px 12px; /* Reduced padding */
         border: 1px solid #e9ecef;
-        border-radius: 24px;
-        font-size: 14px;
+        border-radius: 20px; /* Smaller border radius */
+        font-size: 13px; /* Smaller font */
         outline: none;
         transition: border-color 0.2s;
     }
@@ -914,13 +922,14 @@ a.centered-section {
         color: white;
         border: none;
         border-radius: 50%;
-        width: 44px;
-        height: 44px;
+        width: 36px; /* Smaller button */
+        height: 36px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: transform 0.2s;
+        font-size: 12px; /* Smaller icon */
     }
 
     .send-button:hover:not(:disabled) {
@@ -933,32 +942,32 @@ a.centered-section {
     }
 
     .no-log-message {
-        padding: 20px;
-        text-align: center;
+        padding: 15px; /* Reduced padding */
+        text-align: left; /* Left align */
         color: #6c757d;
         background: #f8f9fa;
         border-top: 1px solid #e9ecef;
-        border-radius: 8px;
+        font-size: 13px; /* Smaller font */
     }
 
     .no-log-message i {
-        margin-right: 8px;
+        margin-right: 6px; /* Reduced margin */
         color: #667eea;
     }
 
     /* Scrollbar styling */
     .chatbot-messages::-webkit-scrollbar {
-        width: 6px;
+        width: 4px; /* Thinner scrollbar */
     }
 
     .chatbot-messages::-webkit-scrollbar-track {
         background: #f1f1f1;
-        border-radius: 3px;
+        border-radius: 2px;
     }
 
     .chatbot-messages::-webkit-scrollbar-thumb {
         background: #c1c1c1;
-        border-radius: 3px;
+        border-radius: 2px;
     }
 
     .chatbot-messages::-webkit-scrollbar-thumb:hover {

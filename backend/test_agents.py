@@ -50,19 +50,20 @@ def test_agent_flow():
             print(f"Response: {json.dumps(result, indent=2)}")
             return result
         
-        def call_summarizeForUser(self, question: str):
+        def call_summarizeForUser(self, question: str, integration_result: str):
             print(f"\n{'='*60}")
             print("STEP: SUMMARIZE_FOR_USER")
             print(f"{'='*60}")
             print(f"Question: {question}")
+            print(f"Integration Result: {integration_result}")
             
-            result = super().call_summarizeForUser(question)
+            result = super().call_summarizeForUser(question, integration_result)
             print(f"Response: {result}")
             return result
     
     # Test with one question
     agent = LoggingAgent(log_id=log_id)
-    question = "What happened at 100 seconds into the flight?"
+    question = "What was the speed at time 3m45s?"
     
     print(f"TESTING QUESTION: {question}")
     print(f"LOG ID: {log_id}")

@@ -331,11 +331,11 @@ class RAGDocsGenerator:
             
             if speeds:
                 content += f"\nVelocity Data:\n"
-                content += f"- Ground Speed: {min(speeds)/100:.1f} to {max(speeds)/100:.1f} m/s\n"
-                content += f"- Average Speed: {sum(speeds)/len(speeds)/100:.1f} m/s\n"
+                content += f"- Ground Speed: {min(speeds):.1f} to {max(speeds):.1f} m/s\n"
+                content += f"- Average Speed: {sum(speeds)/len(speeds):.1f} m/s\n"
             
             if vz:
-                content += f"- Vertical Speed: {min(vz)/100:.1f} to {max(vz)/100:.1f} m/s\n"
+                content += f"- Vertical Speed: {min(vz):.1f} to {max(vz):.1f} m/s\n"
         else:
             content += "No GPS data available\n"
         
@@ -520,7 +520,7 @@ class RAGDocsGenerator:
                 return {
                     "title": "ArduPilot Message Reference",
                     "content": "ArduPilot documentation not available. Please run docs_parser.py to generate reference data.",
-                    "type": "reference",
+                    "document_type": "reference",
                     "priority": "low"
                 }
             
@@ -533,7 +533,7 @@ class RAGDocsGenerator:
                 return {
                     "title": "ArduPilot Message Reference", 
                     "content": "No ArduPilot log message documentation found.",
-                    "type": "reference",
+                    "document_type": "reference",
                     "priority": "low"
                 }
             
@@ -549,7 +549,7 @@ class RAGDocsGenerator:
                 return {
                     "title": "ArduPilot Message Reference",
                     "content": "No relevant message types found in documentation.",
-                    "type": "reference", 
+                    "document_type": "reference", 
                     "priority": "low"
                 }
             
@@ -576,16 +576,9 @@ class RAGDocsGenerator:
                     content_parts.append("### Field Definitions:")
                     content_parts.append("")
                     
-                    for field in table_data:
-                        field_name = field.get('TimeUS', 'Unknown')
-                        units = field.get('μs', 'N/A')
-                        description = field.get('Time since system startup', 'No description')
-                        
-                        if field_name != 'TimeUS':  # Skip the header row
-                            content_parts.append(f"- **{field_name}**: {description}")
-                            if units and units != 'N/A':
-                                content_parts.append(f"  - Units: {units}")
-                            content_parts.append("")
+                    for item in table_data:
+                        content_parts.append(str(item))
+                    content_parts.append("") # Add a blank line for separation
                 else:
                     content_parts.append("*No field definitions available*")
                     content_parts.append("")
@@ -623,7 +616,7 @@ class RAGDocsGenerator:
             return {
                 "title": "ArduPilot Message Reference",
                 "content": "\n".join(content_parts),
-                "type": "reference",
+                "document_type": "reference",
                 "priority": "high",
                 "message_types_covered": [s.get('message_type') for s in relevant_sections]
             }
@@ -632,6 +625,6 @@ class RAGDocsGenerator:
             return {
                 "title": "ArduPilot Message Reference",
                 "content": f"Error loading ArduPilot documentation: {str(e)}",
-                "type": "reference",
+                "document_type": "reference",
                 "priority": "low"
             }

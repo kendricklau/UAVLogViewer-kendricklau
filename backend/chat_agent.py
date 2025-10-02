@@ -9,51 +9,68 @@ from dotenv import load_dotenv
 load_dotenv()
 
 OPENAI_MODEL = "gpt-4o-mini"
+GENERAL_SYSTEM_PROMPT = """
+    You are an expert in ArduPilot operations and vehicle diagnosis.
+    You are the general expert. Focus on general flight data and related flight indicators.
+    Input has immutable flight data you must base and parse your response on.
+    Ensure you address the user question first, and then elaborate. Don't be too verbose.
+"""
+
 SUMMARIZE_FOR_USER_SYSTEM_PROMPT = """
     You are the summarize for user expert. Focus on summarizing the context and answering the question for the user.
-    Respond in a concise human readable format and feel free to be story telling: summary of issues or findings with timestamps associated with each of them. Each should be its own paragraph and comes with a diagnostic and suggested cause.
+    Respond in a concise human readable format and feel free to be story telling. Use SI units and abbreviations where appropriate.
+    summary of issues or findings with timestamps associated with each of them. Each should be its own paragraph and comes with a diagnostic and suggested cause.
+    Ensure you address the user question first, and then elaborate. No need to mention every expert explicitly, just a quick summary of what each expert found.
+    This is an executive summary, so don't be too verbose. Do not wrap in markdown code blocks or add any other text.
 """
 PLANNER_SYSTEM_PROMPT = f"""
     You are an expert in ArduPilot operations and vehicle diagnosis.
     Given a question, decide the following and respond as a compact JSON object with the keys:
     "requested_time_windows": array of single point timestamps to request from those timestamps. Always in milliseconds.
-    "requested_experts": array of experts to call drawn from ["attitude","gps","ekf","parameters"],
+    "requested_experts": array of experts to call drawn from ["attitude","gps","ekf","parameters"], ok to not call any experts if the question is not related to any of the experts.
     Return ONLY valid JSON. Do not wrap in markdown code blocks or add any other text.
 """
         
 EXPERT_SYSTEM_PROMPT = {
     "attitude": """
+        You are an expert in ArduPilot operations and vehicle diagnosis.
         You are Attitude Expert. Focus on ATT messages and related attitude indicators.
-        Input has a log_slice. 
-        Return Only valid JSON: {findings:[{desc, severity, start_ts,end_ts,conf,evidence}], diagnostics: {...}, suggested_cause: ""}
+        Input has immutable flight data you must base and parse your response on. Ensure you're converging on available attitude data from available ardupilot rag docs
+        Return Only valid JSON: [{timestamp, signal name, signal value, start_ts, end_ts}], diagnostics: {...}, suggested_cause: ""}
         Return ONLY valid JSON. Do not wrap in markdown code blocks or add any other text.
     """,
     "gps": """
+        You are an expert in ArduPilot operations and vehicle diagnosis.
         You are GPS Expert. Focus on GPS messages and related GPS indicators.
-        Input has a log_slice. 
-        Return Only valid JSON: {findings:[{desc, severity, start_ts,end_ts,conf,evidence}], diagnostics: {...}, suggested_cause: ""}
+        Input has immutable flight data you must base and parse your response on. Ensure you're converging on available gps data from available ardupilot rag docs
+        Return Only valid JSON: [{timestamp, signal name, signal value, start_ts, end_ts}], suggested_cause: ""}
         Return ONLY valid JSON. Do not wrap in markdown code blocks or add any other text.
     """,
     "ekf": """
+        You are an expert in ArduPilot operations and vehicle diagnosis.
         You are the EKF expert. Focus on XKF and EKF health indicators.
-        Input has a log_slice. 
-        Return Only valid JSON: {findings:[{desc, severity, start_ts,end_ts,conf,evidence}], diagnostics: {...}, suggested_cause: ""}
+        Input has immutable flight data you must base and parse your response on. Ensure you're converging on available ekf data from available ardupilot rag docs
+        Return Only valid JSON: [{timestamp, signal name, signal value, start_ts, end_ts}], diagnostics: {...}, suggested_cause: ""}
         Return ONLY valid JSON. Do not wrap in markdown code blocks or add any other text.
     """,
     "parameters": """
+        You are an expert in ArduPilot operations and vehicle diagnosis.
         You are the parameters expert. Concentrate on PARM messages and configuration anomalies.
-        Input has a log_slice. 
-        Return Only valid JSON: {findings:[{desc, severity, start_ts,end_ts,conf,evidence}], diagnostics: {...}, suggested_cause: ""}
+        Input has immutable flight data you must base and parse your response on. Ensure you're converging on available parameters data from available ardupilot rag docs
+        Return Only valid JSON: [{timestamp, signal name, signal value, start_ts, end_ts}], diagnostics: {...}, suggested_cause: ""}
         Return ONLY valid JSON. Do not wrap in markdown code blocks or add any other text.
     """,
 }
 
 INTEGRATION_SYSTEM_PROMPT = """
-    You are the integration expert. Combine the structured outputs from the other experts, the question, and the shared context to answer the user's question. Do two experts analysis correlate with anything to answer the question? If so, provide a summary of the correlation in your findings
+    You are an expert in ArduPilot operations and vehicle diagnosis.
+    You are the integration expert. 
+    Ensure you're reasoning and cross-analyzing between experts analysis and your own analysis. Do not modify the expert data.
+    Hypothesize about any patterns or correlations between the experts analysis and your own analysis. Do not modify the expert data.
+    Help the user solve the problem or provide additional context that might not be obvious. Do not modify the expert data.
     timestamps: array of timestamps from the experts,
     findings: array of findings from the experts,
     diagnostics: dictionary of diagnostics from the experts
-    Return only valid JSON. Do not wrap in markdown code blocks or add any other text.
 """
 def _append_agent_chat_to_history(log_id, agent_name, question, answer):
     if not log_id:
@@ -159,20 +176,41 @@ class ChatAgent:
         _append_agent_chat_to_history(self.log_id, "ask", question, content)
         return content
     
-    def call_summarizeForUser(self, question: str):
+    def call_general(self, question: str):
+        rag_docs = self.get_rag_docs(self.log_id)
+        context = "\n\n".join([f"Title: {doc.get('title', '')}\nContent: {doc.get('content', '')}" for doc in rag_docs])
+        context = self._truncate_text(context, MAX_INPUT_TOKENS)
+        prompt_question = self._truncate_text(question, MAX_INPUT_TOKENS)
+        response = self.client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": GENERAL_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Question: {prompt_question}\n\nContext:\n{context}"}
+            ],
+            max_tokens=MAX_OUTPUT_TOKENS,
+        )
+        content = response.choices[0].message.content
+        _append_agent_chat_to_history(self.log_id, "general", question, content)
+        return content
+    
+    def call_summarizeForUser(self, question, integration_result):
+        """Summarize the integration result for the user"""
         rag_docs = self.get_rag_docs(self.log_id)
         context = "\n\n".join([f"Title: {doc.get('title', '')}\nContent: {doc.get('content', '')}" for doc in rag_docs])
         context = self._truncate_text(context, MAX_INPUT_TOKENS)
         prompt_question = self._truncate_text(question, MAX_INPUT_TOKENS)
         
+        messages = [
+            {"role": "system", "content": f"{SUMMARIZE_FOR_USER_SYSTEM_PROMPT}\n\nContext:\n{context}"},
+            {"role": "user", "content": f"Question: {prompt_question}\n\nIntegration Result: {integration_result}"}
+        ]
+        
         response = self.client.chat.completions.create(
             model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": SUMMARIZE_FOR_USER_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt_question}
-            ],
+            messages=messages,
             max_tokens=MAX_OUTPUT_TOKENS,
         )
+        
         content = response.choices[0].message.content
         _append_agent_chat_to_history(self.log_id, "summarizeForUser", question, content)
         return content
@@ -241,7 +279,7 @@ class ChatAgent:
             model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": EXPERT_SYSTEM_PROMPT[expert]},
-                {"role": "user", "content": f"Question: {prompt_question}\n\nContext:\n{context + flight_data_str}"}
+                {"role": "user", "content": f"Question: {prompt_question}\n\nContext:\n{context}\n\nFlight Data:\n{flight_data_str}"}
             ],
             max_tokens=MAX_OUTPUT_TOKENS,
         )
@@ -269,7 +307,7 @@ class ChatAgent:
             model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": INTEGRATION_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Question: {prompt_question}\n\nContext:\n{context}\n\nExpert Responses:\n{expert_payload}"}
+                {"role": "user", "content": f"Question: {prompt_question}\n\nExpert Responses:\n{expert_payload}"}
             ],
             max_tokens=MAX_OUTPUT_TOKENS,
         )
@@ -296,19 +334,21 @@ class ChatAgent:
                 # Handle both string timestamps and objects with timestamp/duration
                 if isinstance(time_window, str):
                     timestamp_ms = float(time_window)
-                    flight_data[time_window] = self.get_flight_data(timestamp_ms, None, 10)
+                    flight_data[time_window] = self.get_flight_data(timestamp_ms, None, 1)
                 else:
                     timestamp_ms = float(time_window)
-                    flight_data[str(timestamp_ms)] = self.get_flight_data(timestamp_ms, None, 10)
+                    flight_data[str(timestamp_ms)] = self.get_flight_data(timestamp_ms, None, 1)
             except (ValueError, TypeError) as e:
                 print(f"Warning: Could not convert timestamp '{time_window}' to number: {e}")
                 continue
-        
-        for expert in experts:
-            outputs[expert] = self.call_expert(question, expert, flight_data)
-        final = self.call_integration(question, outputs)
-        final_str = self._json_dump(final) if isinstance(final, dict) else str(final)
-        final = self.call_summarizeForUser(final_str)
+        if experts != []:
+            for expert in experts:
+                outputs[expert] = self.call_expert(question, expert, flight_data)
+            final = self.call_integration(question, outputs)
+            final_str = self._json_dump(final) if isinstance(final, dict) else str(final)
+            final = self.call_summarizeForUser(question, final_str)
+        else:
+            final = self.call_general(question)
         return self._json_dump(final)
 
     def get_rag_docs(self, log_id, document_type=None):
@@ -320,8 +360,9 @@ class ChatAgent:
             # Filter documents that match the document_type pattern
             filtered_docs = []
             for doc in docs:
-                if 'document_type' in doc and re.search(document_type, doc['document_type'], re.IGNORECASE):
+                if 'document_type' in doc and re.search(document_type, doc['document_type'], re.IGNORECASE) or doc['document_type'] == 'reference':
                     filtered_docs.append(doc)
+            
             return filtered_docs
         
         return docs
