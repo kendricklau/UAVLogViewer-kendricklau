@@ -18,6 +18,11 @@
                 <!-- Plot -->
                 <a :class="selected === 'plot' ? 'selected' : ''" @click="selected='plot'"
                    v-if="state.processDone"> <i class="fas fa-chart-line"></i>Plot</a>
+                <!-- Chatbot -->
+                <a :class="selected === 'chatbot' ? 'selected' : ''" @click="selected='chatbot'"
+                   v-if="state.processDone">
+                    <i class="fas fa-comments"></i>Chat
+                </a>
                 <!-- more -->
                 <a :class="selected ==='other' ? 'selected' : ''" @click="selected='other'" v-if="state.processDone">
                     <i class="fas fa-ellipsis-v"></i>
@@ -36,6 +41,65 @@
                     <Dropzone/>
                     <span class="buildinfo">Commit {{state.commit}}</span>
                     <span class="buildinfo">Built {{state.buildDate}}</span>
+                </div>
+                <div v-if="selected==='chatbot'">
+                    <div class="chatbot-sidebar">
+                        <h4><i class="fa fa-robot"></i> Flight Log Assistant</h4>
+                        <div class="chatbot-messages" ref="messagesContainer">
+                            <div v-if="state.chatHistory.length === 0" class="welcome-message">
+                                <p>👋 Hello! I'm your flight log assistant.</p>
+                                <p>Ask me questions about your flight data, parameters, GPS, attitude, or EKF.</p>
+                            </div>
+
+                            <div
+                                v-for="(message, index) in state.chatHistory"
+                                :key="index"
+                                class="message"
+                                :class="message.role"
+                            >
+                                <div class="message-content">
+                                    <div class="message-text" v-html="formatMessage(message.content)"></div>
+                                    <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+                                </div>
+                            </div>
+
+                            <div v-if="isLoading" class="message assistant">
+                                <div class="message-content">
+                                    <div class="typing-indicator">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Input Area -->
+                        <div class="chatbot-input" v-if="state.processDone && state.logId">
+                            <div class="input-group">
+                                <input
+                                    type="text"
+                                    v-model="currentMessage"
+                                    @keyup.enter="sendMessage"
+                                    placeholder="Ask about your flight log..."
+                                    :disabled="isLoading"
+                                    class="message-input"
+                                />
+                                <button
+                                    @click="sendMessage"
+                                    :disabled="isLoading || !currentMessage.trim()"
+                                    class="send-button"
+                                >
+                                    <i class="fa fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- No Log Loaded Message -->
+                        <div class="no-log-message" v-if="!state.processDone || !state.logId">
+                            <p><i class="fa fa-info-circle"></i> Load a flight log to start chatting</p>
+                        </div>
+                    </div>
                 </div>
                 <div v-if="selected==='other'">
                     <!-- PARAM/MESSAGES/RADIO -->
@@ -146,13 +210,102 @@ export default {
             recorder: null,
             stream: null,
             downloadURL: '',
-            fileName: 'video.mp4'
+            fileName: 'video.mp4',
+            // Chatbot data
+            currentMessage: '',
+            isLoading: false
         }
     },
     methods: {
         setSelected (selected) {
             this.selected = selected
         },
+
+        askExample (question) {
+            this.currentMessage = question
+            this.sendMessage()
+        },
+        async sendMessage () {
+            if (!this.currentMessage.trim() || this.isLoading || !this.state.logId) return
+
+            const userMessage = this.currentMessage.trim()
+            this.currentMessage = ''
+
+            // Add user message to history
+            const userMsg = {
+                role: 'user',
+                content: userMessage,
+                timestamp: new Date().toISOString()
+            }
+            this.state.chatHistory.push(userMsg)
+
+            this.isLoading = true
+            this.$nextTick(() => {
+                this.scrollToBottom()
+            })
+
+            try {
+                const response = await fetch('/api/chat/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        log_id: this.state.logId,
+                        question: userMessage
+                    })
+                })
+
+                if (response.ok) {
+                    const data = await response.json()
+
+                    // Add assistant response to history
+                    const assistantMsg = {
+                        role: 'assistant',
+                        content: data.answer,
+                        timestamp: new Date().toISOString()
+                    }
+                    this.state.chatHistory.push(assistantMsg)
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+                }
+            } catch (error) {
+                console.error('Failed to send message:', error)
+
+                // Add error message to history
+                const errorMsg = {
+                    role: 'assistant',
+                    content: 'Sorry, I encountered an error. Please try again.',
+                    timestamp: new Date().toISOString()
+                }
+                this.state.chatHistory.push(errorMsg)
+            } finally {
+                this.isLoading = false
+                this.$nextTick(() => {
+                    this.scrollToBottom()
+                })
+            }
+        },
+
+        formatMessage (content) {
+            // Basic formatting for better display
+            return content
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        },
+
+        formatTime (timestamp) {
+            const date = new Date(timestamp)
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+
+        scrollToBottom () {
+            if (this.$refs.messagesContainer) {
+                this.$refs.messagesContainer.scrollTop = this.$refs.messagesContainer.scrollHeight
+            }
+        },
+
 
         startCapture (displayMediaOptions) {
             navigator.mediaDevices.getDisplayMedia({video: { mediaSource: 'screen' }})
@@ -590,6 +743,226 @@ a.centered-section {
     .files-header {
         border-left: none;
         margin-left: 40%;
-
     }
+
+    /* Chatbot Sidebar Styles */
+    .chatbot-sidebar {
+        padding: 20px;
+        text-align: center;
+        height: calc(100vh - 200px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chatbot-sidebar h4 {
+        color: #667eea;
+        margin-bottom: 15px;
+        font-size: 18px;
+    }
+
+    .chatbot-messages {
+        flex: 1;
+        overflow-y: auto;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        max-height: 400px;
+    }
+
+    .welcome-message {
+        text-align: center;
+        color: #6c757d;
+        padding: 20px;
+    }
+
+    .welcome-message p {
+        margin: 8px 0;
+    }
+
+    .example-questions {
+        margin-top: 16px;
+        text-align: left;
+    }
+
+    .example-questions ul {
+        list-style: none;
+        padding: 0;
+    }
+
+    .example-question {
+        background: #e9ecef;
+        padding: 8px 12px;
+        margin: 4px 0;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        display: block;
+    }
+
+    .example-question:hover {
+        background: #dee2e6;
+    }
+
+    .message {
+        margin-bottom: 16px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .message.user {
+        align-items: flex-end;
+    }
+
+    .message.assistant {
+        align-items: flex-start;
+    }
+
+    .message-content {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 18px;
+        position: relative;
+    }
+
+    .message.user .message-content {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant .message-content {
+        background: white;
+        color: #333;
+        border: 1px solid #e9ecef;
+        border-bottom-left-radius: 4px;
+    }
+
+    .message-text {
+        line-height: 1.4;
+        word-wrap: break-word;
+    }
+
+    .message-time {
+        font-size: 11px;
+        opacity: 0.7;
+        margin-top: 4px;
+    }
+
+    .typing-indicator {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #999;
+        animation: typing 1.4s infinite ease-in-out;
+    }
+
+    .typing-indicator span:nth-child(1) {
+        animation-delay: -0.32s;
+    }
+
+    .typing-indicator span:nth-child(2) {
+        animation-delay: -0.16s;
+    }
+
+    @keyframes typing {
+        0%, 80%, 100% {
+            transform: scale(0.8);
+            opacity: 0.5;
+        }
+        40% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .chatbot-input {
+        padding: 16px;
+        background: white;
+        border-top: 1px solid #e9ecef;
+        border-radius: 8px;
+    }
+
+    .input-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    .message-input {
+        flex: 1;
+        padding: 12px 16px;
+        border: 1px solid #e9ecef;
+        border-radius: 24px;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .message-input:focus {
+        border-color: #667eea;
+    }
+
+    .send-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+    }
+
+    .send-button:hover:not(:disabled) {
+        transform: scale(1.05);
+    }
+
+    .send-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .no-log-message {
+        padding: 20px;
+        text-align: center;
+        color: #6c757d;
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        border-radius: 8px;
+    }
+
+    .no-log-message i {
+        margin-right: 8px;
+        color: #667eea;
+    }
+
+    /* Scrollbar styling */
+    .chatbot-messages::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .chatbot-messages::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    .chatbot-messages::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+    }
+
+    .chatbot-messages::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
 </style>

@@ -48,7 +48,16 @@ const devWebpackConfig = merge(baseWebpackConfig, {
       ],
     },
     hot: true,
-    static: "./",
+    static: {
+      directory: "./",
+      watch: {
+        ignored: [
+          "**/backend/data/**",  // Ignore backend data directory
+          "**/node_modules/**",
+          "**/dist/**"
+        ]
+      }
+    },
     compress: true,
     host: HOST || config.dev.host,
     port: PORT || config.dev.port,

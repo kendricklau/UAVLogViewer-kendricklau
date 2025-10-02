@@ -287,6 +287,8 @@ export default {
                 if (response.ok) {
                     const result = await response.json()
                     console.log('Log data exported successfully:', result)
+                    // Store the log ID for chatbot functionality
+                    this.state.logId = result.log_id
                 } else {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`)
                 }
