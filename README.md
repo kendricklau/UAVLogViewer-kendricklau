@@ -3,11 +3,6 @@
 # initialize submodules
 git submodule update --init --recursive
 
-
-# Set env tokens in terminal (optionally in a .env file)
-export VUE_APP_CESIUM_TOKEN=<your cesium token>
-export OPENAI_API_KEY=<your openai api key>
-
 # Launch backend
 cd backend
 python3.11 -m venv .venv
@@ -15,10 +10,18 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 3000
 
-# In another terminal session, launch frontend
-npm install
+# In another terminal window, launch frontend
+cd .. # ensure you're in root directory
+npm install # ensure your virtual environment is still running
+
+# Set env tokens in terminal (optionally in a .env file)
+export VUE_APP_CESIUM_TOKEN=<your cesium token>
+export OPENAI_API_KEY=<your openai api key>
+
+# Serve to http://localhost:8080/
 npm run dev
 ```
+On a browser, open http://localhost:8080/
 
 # UAV Log Viewer
 

@@ -201,7 +201,6 @@ class ChatAgent:
         )
         planner_response_content = response.choices[0].message.content
         _append_agent_chat_to_history(self.log_id, "planner", question, planner_response_content)
-        print("planner_response_content", planner_response_content)
         return planner_response_content
     
     def call_general(self, question: str):
